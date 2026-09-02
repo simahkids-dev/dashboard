@@ -64,7 +64,7 @@
     min-height:100vh;
   }
   h1,h2,h3{font-family:'Thmanyah Serif Display',sans-serif;font-weight:700;color:var(--ink);margin:0;}
-  .wrap{max-width:1180px;margin:0 auto;padding:22px 18px 60px;}
+  .wrap{max-width:1500px;margin:0 auto;padding:22px 18px 60px;}
 
   /* header */
   .topbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;margin-bottom:22px;}
@@ -123,13 +123,13 @@
     padding:10px 14px;border:1.5px solid var(--line);border-radius:10px;background:var(--cream);
     color:var(--ink);outline:none;
   }
-  .search-input:focus{border-color:var(--sage);}
-  table{width:100%;border-collapse:collapse;font-size:12.8px;}
+  table{width:100%;border-collapse:collapse;font-size:12.2px;}
   thead th{
-    text-align:right;padding:10px 8px;color:var(--ink-soft);font-weight:700;
+    text-align:right;padding:9px 7px;color:var(--ink-soft);font-weight:700;
     border-bottom:1.5px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--card);
   }
-  tbody td{padding:10px 8px;border-bottom:1px solid var(--line);white-space:nowrap;}
+  .search-input:focus{border-color:var(--sage);}
+  tbody td{padding:9px 7px;border-bottom:1px solid var(--line);white-space:nowrap;}
   td.cell-center{text-align:center;}
   .status-cb{width:17px;height:17px;cursor:pointer;accent-color:var(--sage);}
   .badge.full{background:#EAF0DF;color:#5F7047;}
@@ -392,7 +392,7 @@ function render(rows){
     <div class="table-scroll">
       <table id="dataTable">
         <thead><tr>
-          <th>اسم الطفل (اضغطي للتفاصيل)</th><th>المرحلة</th><th>الجنس</th><th>تاريخ الميلاد</th>
+          <th>اسم الطفل</th><th>المرحلة</th><th>الجنس</th><th>تاريخ الميلاد</th>
           <th>اسم الأم</th><th>جوال الأم</th><th>جوال الأب</th><th>خصم الافتتاح</th><th>تاريخ التسجيل</th>
           <th>مقبول</th><th>منسحب</th>
         </tr></thead>
