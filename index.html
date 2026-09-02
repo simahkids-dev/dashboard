@@ -130,6 +130,10 @@
     border-bottom:1.5px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--card);
   }
   tbody td{padding:10px 8px;border-bottom:1px solid var(--line);white-space:nowrap;}
+  td.cell-center{text-align:center;}
+  .status-cb{width:17px;height:17px;cursor:pointer;accent-color:var(--sage);}
+  .badge.full{background:#EAF0DF;color:#5F7047;}
+  .badge.first-month{background:#F3E7D4;color:#8A6423;}
   tbody tr:hover{background:var(--cream);}
   .table-scroll{overflow-x:auto;max-height:520px;overflow-y:auto;}
   .badge{
@@ -228,6 +232,46 @@ const SOURCE_COLORS = ["var(--sage)","var(--teal)","var(--gold)","var(--pink)"];
 let refreshTimer = null;
 let lastRows = [];
 
+/* ============ حالة المقبولين/المنسحبين (محفوظة في نفس الشيت — يشوفها الجميع) ============ */
+function rowKey(r){
+  return (r['اسم الطفل']||'') + '|' + (r['جوال الأم']||r['جوال الأب']||'');
+}
+function getStatus(r){
+  return {
+    accepted: r['مقبول'] === 'نعم' || r['مقبول'] === true,
+    withdrawn: r['منسحب'] === 'نعم' || r['منسحب'] === true
+  };
+}
+async function setStatus(key, field, value){
+  // تحديث فوري في الواجهة قبل رد السيرفر
+  const row = lastRows.find(r => rowKey(r) === key);
+  if(row){
+    row[field] = value ? 'نعم' : '';
+    if(value){
+      const opposite = field === 'مقبول' ? 'منسحب' : 'مقبول';
+      row[opposite] = '';
+    }
+  }
+  const box = document.getElementById('searchBox');
+  const q = box ? box.value : '';
+  render(lastRows);
+  if(q){
+    const newBox = document.getElementById('searchBox');
+    newBox.value = q;
+    newBox.dispatchEvent(new Event('input'));
+  }
+
+  try{
+    await fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain;charset=utf-8'}, // لتفادي مشاكل CORS مع Apps Script
+      body: JSON.stringify({action: 'updateStatus', key, field, value})
+    });
+  }catch(err){
+    console.error('تعذّر حفظ الحالة على الشيت:', err);
+  }
+}
+
 async function loadData(manual){
   const dot = document.getElementById('statusDot');
   try{
@@ -267,10 +311,18 @@ function render(rows){
   const sourceCounts = {};
   rows.forEach(r => { const s = r['مصدر المعرفة'] || 'غير محدد'; sourceCounts[s] = (sourceCounts[s]||0)+1; });
 
-  const discountCount = rows.filter(r => {
+  const beforeDeadlineCount = rows.filter(r => {
     const t = new Date(r['الوقت']);
     return !isNaN(t) && t <= DISCOUNT_DEADLINE;
   }).length;
+  const afterDeadlineCount = total - beforeDeadlineCount;
+
+  let acceptedCount = 0, withdrawnCount = 0;
+  rows.forEach(r => {
+    const s = getStatus(r);
+    if(s.accepted) acceptedCount++;
+    if(s.withdrawn) withdrawnCount++;
+  });
 
   const maxStage = Math.max(...Object.values(stageCounts), 1);
   const maxSource = Math.max(...Object.values(sourceCounts), 1);
@@ -280,9 +332,12 @@ function render(rows){
   // ---- stat cards ----
   html += `<div class="stats-grid">
     <div class="stat-card"><div class="label">إجمالي التسجيلات</div><div class="value">${total}</div></div>
-    <div class="stat-card accent-gold"><div class="label">مؤهلون لخصم الافتتاح</div><div class="value">${discountCount}</div><div class="sub">قبل ٥ ربيع الأول ١٤٤٨هـ</div></div>
+    <div class="stat-card accent-gold"><div class="label">خصم كامل العام</div><div class="value">${beforeDeadlineCount}</div><div class="sub">سجّلوا قبل ٥ ربيع الأول ١٤٤٨هـ</div></div>
+    <div class="stat-card accent-gold"><div class="label">خصم الشهر الأول فقط</div><div class="value">${afterDeadlineCount}</div><div class="sub">سجّلوا بعد ٥ ربيع الأول ١٤٤٨هـ</div></div>
     <div class="stat-card"><div class="label">عدد البنات</div><div class="value">${girls}</div><div class="sub">${total? Math.round(girls/total*100):0}٪ من الإجمالي</div></div>
     <div class="stat-card accent-teal"><div class="label">عدد الأولاد</div><div class="value">${boys}</div><div class="sub">${total? Math.round(boys/total*100):0}٪ من الإجمالي</div></div>
+    <div class="stat-card"><div class="label">المقبولون</div><div class="value">${acceptedCount}</div></div>
+    <div class="stat-card"><div class="label">المنسحبون</div><div class="value">${withdrawnCount}</div></div>
   </div>`;
 
   // ---- charts ----
@@ -339,15 +394,18 @@ function render(rows){
         <thead><tr>
           <th>اسم الطفل (اضغطي للتفاصيل)</th><th>المرحلة</th><th>الجنس</th><th>تاريخ الميلاد</th>
           <th>اسم الأم</th><th>جوال الأم</th><th>جوال الأب</th><th>خصم الافتتاح</th><th>تاريخ التسجيل</th>
+          <th>مقبول</th><th>منسحب</th>
         </tr></thead>
         <tbody>`;
 
   window.__rows = rows;
   rows.slice().reverse().forEach((r, idx) => {
     const t = new Date(r['الوقت']);
-    const eligible = !isNaN(t) && t <= DISCOUNT_DEADLINE;
+    const full = !isNaN(t) && t <= DISCOUNT_DEADLINE;
     const dateStr = !isNaN(t) ? t.toLocaleDateString('ar-SA') : '-';
     const originalIndex = rows.indexOf(r);
+    const key = rowKey(r);
+    const status = getStatus(r);
     html += `<tr>
       <td><button type="button" class="child-link" onclick="openChildModal(${originalIndex})">${esc(r['اسم الطفل'])}</button></td>
       <td>${esc(r['المرحلة'])}</td>
@@ -356,14 +414,22 @@ function render(rows){
       <td>${esc(r['اسم الأم'])}</td>
       <td>${waLink(r['جوال الأم'])}</td>
       <td>${waLink(r['جوال الأب'])}</td>
-      <td><span class="badge ${eligible?'yes':'no'}">${eligible?'مؤهل':'غير مؤهل'}</span></td>
+      <td><span class="badge ${full?'full':'first-month'}">${full?'كامل العام':'الشهر الأول فقط'}</span></td>
       <td>${dateStr}</td>
+      <td class="cell-center"><input type="checkbox" class="status-cb" data-key="${esc(key)}" data-field="مقبول" ${status.accepted?'checked':''}></td>
+      <td class="cell-center"><input type="checkbox" class="status-cb" data-key="${esc(key)}" data-field="منسحب" ${status.withdrawn?'checked':''}></td>
     </tr>`;
   });
 
   html += `</tbody></table></div><div class="row-count" id="rowCount">${total} تسجيل</div></div>`;
 
   document.getElementById('content').innerHTML = html;
+
+  document.querySelectorAll('.status-cb').forEach(cb => {
+    cb.addEventListener('change', function(){
+      setStatus(this.dataset.key, this.dataset.field, this.checked);
+    });
+  });
 
   document.getElementById('searchBox').addEventListener('input', function(){
     const q = this.value.trim().toLowerCase();
